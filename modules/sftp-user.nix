@@ -35,6 +35,7 @@ in {
         They are forbidden to have a terminal, so they are only good
         for backups with tools like restic or borg-backup.
       '';
+      default = {};
   };
 
   config = {
@@ -63,7 +64,7 @@ in {
 
           # ensures that the user will not be allowed access to
           # anything beyond the ${value.home} directory.
-          ChrootDirectory ${value.home}
+          ChrootDirectory ${dirOf value.home}
 
           # disables port forwarding, tunneling and X11 forwarding for
           # this user
