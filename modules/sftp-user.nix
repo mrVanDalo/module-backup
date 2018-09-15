@@ -28,6 +28,13 @@ in {
               authorized keys like openssh.authorizedKeys.keyFiles
             '';
           };
+          initialize = mkOption {
+            type    = with types; bool;
+            default = false;
+            description = ''
+              make sure the home folder is setup properly so sfp will work
+            '';
+          };
         };
       }));
       description = ''
@@ -41,10 +48,10 @@ in {
   config = {
 
     users.users = flip mapAttrs' allEnabled (name: value:
+
       nameValuePair name {
-        createHome = true;
+        createHome = value.initialize;
         description = "User that is only allowed to receive sftp to its home folder";
-        # todo : /var/sftp must be owned by root 755
         home = value.home;
         openssh.authorizedKeys.keyFiles = value.authorizedKeys.keyFiles;
       }
@@ -79,6 +86,36 @@ in {
         ############################################################
         ${concatStringsSep "\n" allUserConfigs}
         Match all
+      '';
+    };
+
+    systemd.services."sftp-user.setup" = {
+      wantedBy = [ "sshd.service" ];
+      description = ''
+        setup rights for home folder for sftp-users to make the chroot work
+      '';
+      restartIfChanged = true;
+      serviceConfig = {
+        Type = "oneshot";
+      };
+      script = let
+        allToInitalize = flip filterAttrs allEnabled (_: value: value.initialize );
+        toInitalize = flip mapAttrsToList allToInitalize (user: value: let
+          parentFolder = dirOf value.home;
+        in ''
+          echo 'fixing ${user}'
+          [ -d ${parentFolder} ] || mkdir -p ${parentFolder}
+          chmod a+rx ${parentFolder}
+          if [ ! -d ${value.home} ]
+          then
+            mkdir -p ${value.home}
+            chown -R ${user} ${value.home}
+            chmod -R 700 ${value.home}
+          fi
+        ''
+      );
+      in ''
+        ${concatStringsSep "\n" toInitalize}
       '';
     };
 
