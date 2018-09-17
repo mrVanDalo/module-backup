@@ -38,12 +38,19 @@ in {
         '';
       };
 
-      servicesRequired = mkOption {
+      requires = mkOption {
         type = with types; listOf str;
         default = [];
         description = ''
           services that need to run for store service to run.
-          Usually the deployment.keys."key" service which is "key"-key.service
+        '';
+      };
+
+      requiredBy = mkOption {
+        type = with types; listOf str;
+        default = [];
+        description = ''
+          list of services which need this service to run
         '';
       };
 
@@ -92,8 +99,10 @@ in {
         keyFile = "${keyFolder}/${subConfig.serviceName}.key";
       in {
 
-        after    = subConfig.servicesRequired;
-        requires = subConfig.servicesRequired;
+        after = subConfig.requires;
+        requires = subConfig.requires;
+        before = subConfig.requiredBy;
+        requiredBy = subConfig.requiredBy;
 
         wantedBy = [ "multi-user.target" ];
 

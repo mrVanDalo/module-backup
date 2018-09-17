@@ -79,6 +79,12 @@ in {
             Create the repository if it doesn't exist.
           '';
         };
+        requires = mkOption {
+          type    = with types; listOf str;
+          description = ''
+            services that are required for the backup to run
+          '';
+        };
       };
     }));
     default = {};
@@ -98,6 +104,8 @@ in {
           path = with pkgs; [
             openssh
           ];
+          requires = plan.requires;
+          after = plan.requires;
           restartIfChanged = false;
           script = /* sh */ ''
             ${resticCmd} backup ${concatStringsSep " " plan.dirs}
