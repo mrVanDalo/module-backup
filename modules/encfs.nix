@@ -72,6 +72,14 @@ in {
         '';
       };
 
+      allowOthers = mkOption {
+        type    = with types; bool;
+        default = true;
+        description = ''
+          make folder visibile to other users
+        '';
+      };
+
       serviceName = mkOption {
         type    = with types; str;
         default = "encfs.${name}";
@@ -90,67 +98,81 @@ in {
   };
 
 
-  config = { systemd.services = flip mapAttrs' active (name: subConfig:
+  config = mkMerge [
+    {
+      systemd.services = flip mapAttrs' active (name: subConfig:
 
-    nameValuePair
-      subConfig.serviceName (
-      let
-        keyFolder = toString /run/keys.encfs;
-        keyFile = "${keyFolder}/${subConfig.serviceName}.key";
-      in {
+        nameValuePair
+          subConfig.serviceName (
+          let
+            keyFolder = toString /run/keys.encfs;
+            keyFile = "${keyFolder}/${subConfig.serviceName}.key";
+          in {
 
-        after = subConfig.requires;
-        requires = subConfig.requires;
-        before = subConfig.requiredBy;
-        requiredBy = subConfig.requiredBy;
+            after = subConfig.requires;
+            requires = subConfig.requires;
+            before = subConfig.requiredBy;
+            requiredBy = subConfig.requiredBy;
 
-        wantedBy = [ "multi-user.target" ];
+            wantedBy = [ "multi-user.target" ];
 
-        unitConfig = {
-          ConditionDirectoryNotEmpty = "!${subConfig.decryptedFolder}";
-        };
+            unitConfig = {
+              ConditionDirectoryNotEmpty = "!${subConfig.decryptedFolder}";
+            };
 
-        serviceConfig = {
-          User = subConfig.user;
+            serviceConfig = {
+              User = subConfig.user;
 
-          # read file key file and put it somewhere
-          # the user can see it (the + runs this command as root)
-          ExecStartPre = let script = pkgs.writeDash "${subConfig.serviceName}-keyfile-gen" /* sh */ ''
-            mkdir -p ${keyFolder}
-            chmod 755 ${keyFolder}
-            cat ${subConfig.keyFile} > ${keyFile}
-            chown ${subConfig.user} ${keyFile}
-            chmod 500 ${keyFile}
+              # read file key file and put it somewhere
+              # the user can see it (the + runs this command as root)
+              ExecStartPre = let script = pkgs.writeDash "${subConfig.serviceName}-keyfile-gen" /* sh */ ''
+                mkdir -p ${keyFolder}
+                chmod 755 ${keyFolder}
+                cat ${subConfig.keyFile} > ${keyFile}
+                chown ${subConfig.user} ${keyFile}
+                chmod 500 ${keyFile}
+              '';
+              in "+${script}";
+
+              # this does not work for some reason, when we change the decryptedFolder
+              ExecStop = let script = pkgs.writeDash "${subConfig.serviceName}-stop" /* sh */ ''
+                set -x
+                ${fusermount} -u ${subConfig.decryptedFolder}
+              '';
+              in "+${script}";
+
+            };
+
+            script = /* sh */ ''
+              set -x
+              mkdir -p ${subConfig.decryptedFolder}
+              mkdir -p ${subConfig.encryptedFolder}
+              ${encfs} -f \
+                --standard \
+                ${optionalString subConfig.allowOthers "-o allow_other"} \
+                --extpass="cat ${keyFile}" ${subConfig.encryptedFolder} ${subConfig.decryptedFolder}
+            '';
+
+            # without this it is hard to depend on this task
+            postStart = ''
+              set -x
+              sleep ${toString subConfig.bootDelay}
+            '';
+
+          })
+      );
+    }
+    # enable fuse option allow_others
+    ( let
+        activeAndAllowdOthers = filterAttrs ( _: conf: conf.allowOthers ) active;
+        enableFuseOptionAllowOthers = 1 > length ( attrNames  activeAndAllowdOthers );
+      in
+        mkIf enableFuseOptionAllowOthers {
+          environment.etc."fuse.conf".text = ''
+            user_allow_other
           '';
-          in "+${script}";
-
-          # this does not work for some reason, when we change the decryptedFolder
-          ExecStop = let script = pkgs.writeDash "${subConfig.serviceName}-stop" /* sh */ ''
-            set -x
-            ${fusermount} -u ${subConfig.decryptedFolder}
-          '';
-          in "+${script}";
-
-        };
-
-        script = ''
-          set -x
-          mkdir -p ${subConfig.decryptedFolder}
-          mkdir -p ${subConfig.encryptedFolder}
-          ${encfs} -f \
-            --standard \
-            --public \
-            --extpass="cat ${keyFile}" ${subConfig.encryptedFolder} ${subConfig.decryptedFolder}
-        '';
-
-        # without this it is hard to depend on this task
-        postStart = ''
-          set -x
-          sleep ${toString subConfig.bootDelay}
-        '';
-
-    })
-  );
-};
+        }
+    )
+  ];
 
 }
