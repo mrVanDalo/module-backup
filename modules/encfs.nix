@@ -165,7 +165,7 @@ in {
     # enable fuse option allow_others
     ( let
         activeAndAllowdOthers = filterAttrs ( _: conf: conf.allowOthers ) active;
-        enableFuseOptionAllowOthers = 1 > length ( attrNames  activeAndAllowdOthers );
+        enableFuseOptionAllowOthers = 0 < length ( attrNames  activeAndAllowdOthers );
       in
         mkIf enableFuseOptionAllowOthers {
           environment.etc."fuse.conf".text = ''
