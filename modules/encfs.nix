@@ -125,7 +125,7 @@ in {
 
               # read file key file and put it somewhere
               # the user can see it (the + runs this command as root)
-              ExecStartPre = let script = pkgs.writeDash "${subConfig.serviceName}-keyfile-gen" /* sh */ ''
+              ExecStartPre = let script = pkgs.writers.writeDash "${subConfig.serviceName}-keyfile-gen" /* sh */ ''
                 mkdir -p ${keyFolder}
                 chmod 755 ${keyFolder}
                 cat ${subConfig.keyFile} > ${keyFile}
@@ -135,7 +135,7 @@ in {
               in "+${script}";
 
               # this does not work for some reason, when we change the decryptedFolder
-              ExecStop = let script = pkgs.writeDash "${subConfig.serviceName}-stop" /* sh */ ''
+              ExecStop = let script = pkgs.writers.writeDash "${subConfig.serviceName}-stop" /* sh */ ''
                 set -x
                 ${fusermount} -u ${subConfig.decryptedFolder}
               '';
