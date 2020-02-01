@@ -111,7 +111,6 @@ in {
             ${resticCmd} backup ${concatStringsSep " " plan.dirs}
           '';
           preStart = /* sh */ mkIf plan.initialize ''
-            # ${resticCmd} snapshots || ( mkdir -p "$(dirname '${toString plan.repo}')" && ${resticCmd} init )
             ${resticCmd} snapshots || ${resticCmd} init
           '';
           serviceConfig = {
